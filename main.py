@@ -57,3 +57,4 @@ if __name__ == "__main__":
     application = ApplicationBuilder().token(TOKEN).build()
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     application.run_polling()
+
