@@ -2,28 +2,29 @@ from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 import asyncio
+import threading
+import os
 
-TOKEN = "ТУТ_ТВОЙ_ТОКЕН"
+TOKEN = "ТВОЙ_ТОКЕН"
 app = Flask(__name__)
 
 active_codes = {}
 used_codes = {}
 
-@app.route('/')
+@app.route("/")
 def index():
     return "Bot is running!"
 
-@app.route('/add_code', methods=['POST'])
+@app.route("/add_code", methods=["POST"])
 def add_code():
-    data = request.json
-    code = data.get("code")
+    code = request.json.get("code")
     if code:
         active_codes[code] = True
-        print(f"[INFO] Добавлен код: {code}")
+        print(f"[INFO] Added code: {code}")
         return "OK"
     return "ERROR", 400
 
-@app.route('/check_code', methods=['GET'])
+@app.route("/check_code", methods=["GET"])
 def check_code():
     code = request.args.get("code")
     if code in used_codes:
@@ -32,13 +33,13 @@ def check_code():
         return str(telegram_id)
     return "NONE"
 
-@app.route('/remove_code', methods=['POST'])
+@app.route("/remove_code", methods=["POST"])
 def remove_code():
-    data = request.json
-    code = data.get("code")
+    code = request.json.get("code")
     if code:
         active_codes.pop(code, None)
         used_codes.pop(code, None)
+        print(f"[INFO] Code removed: {code}")
         return "OK"
     return "ERROR", 400
 
@@ -48,16 +49,20 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text in active_codes:
         used_codes[text] = telegram_id
-        await update.message.reply_text("Код принят! ID отправлен серверу.")
+        await update.message.reply_text("Код принят! Система привяжет ваш аккаунт.")
+        print(f"[INFO] Code {text} used by {telegram_id}")
     else:
         await update.message.reply_text("Код не найден или уже использован.")
 
-async def run_bot():
-    app_tg = ApplicationBuilder().token(TOKEN).build()
-    app_tg.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-    await app_tg.run_polling()
+def start_bot():
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    loop = asyncio.get_event_loop()
+    application = ApplicationBuilder().token(TOKEN).build()
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    loop.run_until_complete(application.run_polling())
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.create_task(run_bot())
-    app.run(host="0.0.0.0", port=8080)
+    threading.Thread(target=start_bot, daemon=True).start()
+
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
