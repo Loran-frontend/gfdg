@@ -1,7 +1,7 @@
 import os
+import asyncio
 from flask import Flask, request
 from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
 
 # --- Настройки ---
 TOKEN = "8394612560:AAEA_-8I-TMpW7LxCEmGHBu8uWa6FMoHcJk"
@@ -9,23 +9,21 @@ if not TOKEN:
     raise ValueError("Установите переменную окружения TOKEN")
 
 PORT = int(os.environ.get("PORT", 5000))
-# PUBLIC_URL нужно установить в Environment Variables Railway, например: https://your-app.up.railway.app
-PUBLIC_URL = "gfdg-production.up.railway.app"
+PUBLIC_URL = "https://gfdg-production.up.railway.app"  # Обязательно HTTPS
 if not PUBLIC_URL:
-    raise ValueError("Установите переменную окружения PUBLIC_URL с вашим Railway URL")
+    raise ValueError("Установите переменную окружения PUBLIC_URL")
 
 WEBHOOK_PATH = f"/{TOKEN}"  # защищённый путь webhook
 
 # --- Инициализация ---
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
-application = ApplicationBuilder().token(TOKEN).build()
 
 # --- Хранилища кодов ---
 active_codes = {}
 used_codes = {}
 
-# --- Flask API ---
+# --- Flask API для работы с кодами ---
 @app.route('/add_code', methods=['POST'])
 def add_code():
     data = request.json
@@ -62,35 +60,33 @@ def remove_code():
 @app.route(WEBHOOK_PATH, methods=['POST'])
 def telegram_webhook():
     update = Update.de_json(request.get_json(force=True), bot)
-    application.update_queue.put(update)
+    # Запускаем обработку сообщений в отдельной задаче asyncio
+    asyncio.create_task(handle_update(update))
     return "OK"
 
-# --- Telegram обработчик сообщений ---
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# --- Асинхронная обработка сообщений ---
+async def handle_update(update: Update):
+    if not update.message or not update.message.text:
+        return
     text = update.message.text.strip()
     telegram_id = update.message.from_user.id
 
     if text in active_codes:
         used_codes[text] = telegram_id
-        await update.message.reply_text(
-            "Код принят! Ваш Telegram ID будет привязан к Minecraft аккаунту."
+        await bot.send_message(
+            chat_id=telegram_id,
+            text="Код принят! Ваш Telegram ID будет привязан к Minecraft аккаунту."
         )
         print(f"[INFO] Код {text} использован пользователем {telegram_id}")
     else:
-        await update.message.reply_text("Код не найден или уже использован.")
+        await bot.send_message(
+            chat_id=telegram_id,
+            text="Код не найден или уже использован."
+        )
 
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-
-# --- Запуск ---
+# --- Запуск Flask и установка webhook ---
 if __name__ == "__main__":
-    # Установка webhook на Telegram
     webhook_url = f"{PUBLIC_URL}{WEBHOOK_PATH}"
     bot.set_webhook(webhook_url)
     print(f"[INFO] Webhook установлен: {webhook_url}")
-      # Запуск Flask сервера
     app.run(host="0.0.0.0", port=PORT)
-
-
-  
-
-
