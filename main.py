@@ -1,21 +1,31 @@
 import os
 from flask import Flask, request
-from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
-from threading import Thread
+from telegram import Update, Bot
+from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
 
-# Получаем токен из переменных окружения
+# --- Настройки ---
 TOKEN = "8394612560:AAEA_-8I-TMpW7LxCEmGHBu8uWa6FMoHcJk"
 if not TOKEN:
-    raise ValueError("Пожалуйста, установите переменную окружения TOKEN")
+    raise ValueError("Установите переменную окружения TOKEN")
 
+PORT = int(os.environ.get("PORT", 5000))
+# PUBLIC_URL нужно установить в Environment Variables Railway, например: https://your-app.up.railway.app
+PUBLIC_URL = "gfdg-production.up.railway.app"
+if not PUBLIC_URL:
+    raise ValueError("Установите переменную окружения PUBLIC_URL с вашим Railway URL")
+
+WEBHOOK_PATH = f"/{TOKEN}"  # защищённый путь webhook
+
+# --- Инициализация ---
 app = Flask(__name__)
+bot = Bot(token=TOKEN)
+application = ApplicationBuilder().token(TOKEN).build()
 
-# Хранилища кодов
+# --- Хранилища кодов ---
 active_codes = {}
 used_codes = {}
 
-# --- Flask эндпоинты ---
+# --- Flask API ---
 @app.route('/add_code', methods=['POST'])
 def add_code():
     data = request.json
@@ -48,7 +58,14 @@ def remove_code():
     print(f"[INFO] Код {code} удалён")
     return "OK"
 
-# --- Telegram бот ---
+# --- Telegram webhook endpoint ---
+@app.route(WEBHOOK_PATH, methods=['POST'])
+def telegram_webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    application.update_queue.put(update)
+    return "OK"
+
+# --- Telegram обработчик сообщений ---
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     telegram_id = update.message.from_user.id
@@ -62,19 +79,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Код не найден или уже использован.")
 
-def run_bot():
-    application = ApplicationBuilder().token(TOKEN).build()
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-    application.run_polling()
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
+# --- Запуск ---
 if __name__ == "__main__":
-    # Получаем порт из переменных окружения (Railway)
-    port = int(os.environ.get("PORT", 5000))
+    # Установка webhook на Telegram
+    webhook_url = f"{PUBLIC_URL}{WEBHOOK_PATH}"
+    bot.set_webhook(webhook_url)
+    print(f"[INFO] Webhook установлен: {webhook_url}")
 
-    # Запускаем Telegram бота в отдельном потоке
-    Thread(target=run_bot).start()
-
-    # Запускаем Flask сервер
-    app.run(host="0.0.0.0", port=port)
-
-
+    # Запуск Flask сервера
+    app.run(host="0.0.0.0", port=PORT)
