@@ -1,76 +1,78 @@
+import os
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
-import asyncio
-import threading
-import os
+from threading import Thread
 
-TOKEN = "ТВОЙ_ТОКЕН"
+# Получаем токен из переменных окружения
+TOKEN = os.environ.get("TOKEN")
+if not TOKEN:
+    raise ValueError("Пожалуйста, установите переменную окружения TOKEN")
+
 app = Flask(__name__)
 
+# Хранилища кодов
 active_codes = {}
 used_codes = {}
 
-@app.route("/")
-def index():
-    return "Bot is running!"
-
-@app.route("/add_code", methods=["POST"])
+# --- Flask эндпоинты ---
+@app.route('/add_code', methods=['POST'])
 def add_code():
-    code = request.json.get("code")
-    if code:
-        active_codes[code] = True
-        print(f"[INFO] Added code: {code}")
-        return "OK"
-    return "ERROR", 400
+    data = request.json
+    if not data or "code" not in data:
+        return "ERROR: Missing 'code'", 400
+    code = data["code"]
+    active_codes[code] = True
+    print(f"[INFO] Добавлен код: {code}")
+    return "OK"
 
-@app.route("/check_code", methods=["GET"])
+@app.route('/check_code', methods=['GET'])
 def check_code():
     code = request.args.get("code")
+    if not code:
+        return "ERROR: Missing 'code' param", 400
     if code in used_codes:
         telegram_id = used_codes.pop(code)
         active_codes.pop(code, None)
         return str(telegram_id)
     return "NONE"
 
-@app.route("/remove_code", methods=["POST"])
+@app.route('/remove_code', methods=['POST'])
 def remove_code():
-    code = request.json.get("code")
-    if code:
-        active_codes.pop(code, None)
-        used_codes.pop(code, None)
-        print(f"[INFO] Code removed: {code}")
-        return "OK"
-    return "ERROR", 400
+    data = request.json
+    if not data or "code" not in data:
+        return "ERROR: Missing 'code'", 400
+    code = data["code"]
+    active_codes.pop(code, None)
+    used_codes.pop(code, None)
+    print(f"[INFO] Код {code} удалён")
+    return "OK"
 
+# --- Telegram бот ---
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     telegram_id = update.message.from_user.id
 
     if text in active_codes:
         used_codes[text] = telegram_id
-        await update.message.reply_text("Код принят! Аккаунт будет привязан.")
-        print(f"[INFO] Code {text} used by {telegram_id}")
+        await update.message.reply_text(
+            "Код принят! Ваш Telegram ID будет привязан к Minecraft аккаунту."
+        )
+        print(f"[INFO] Код {text} использован пользователем {telegram_id}")
     else:
         await update.message.reply_text("Код не найден или уже использован.")
 
-async def start_bot_async():
-    app_tg = ApplicationBuilder().token(TOKEN).build()
-    app_tg.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-
-    # <--- ВАЖНО: отключаем сигналы
-    await app_tg.run_polling(
-        stop_signals=None,
-        close_loop=False
-    )
-
-def start_bot():
-    asyncio.run(start_bot_async())
+def run_bot():
+    application = ApplicationBuilder().token(TOKEN).build()
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    application.run_polling()
 
 if __name__ == "__main__":
-    # Стартуем Telegram-бота в отдельном потоке
-    threading.Thread(target=start_bot, daemon=True).start()
+    # Получаем порт из переменных окружения (Railway)
+    port = int(os.environ.get("PORT", 5000))
 
-    # Flask запускаем как обычный Railway backend
-    port = int(os.environ.get("PORT", 8080))
+    # Запускаем Telegram бота в отдельном потоке
+    Thread(target=run_bot).start()
+
+    # Запускаем Flask сервер
     app.run(host="0.0.0.0", port=port)
