@@ -5,7 +5,7 @@ from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTyp
 from threading import Thread
 
 # Получаем токен из переменных окружения
-TOKEN = 8394612560:AAEA_-8I-TMpW7LxCEmGHBu8uWa6FMoHcJk
+TOKEN = "8394612560:AAEA_-8I-TMpW7LxCEmGHBu8uWa6FMoHcJk"
 if not TOKEN:
     raise ValueError("Пожалуйста, установите переменную окружения TOKEN")
 
@@ -76,4 +76,5 @@ if __name__ == "__main__":
 
     # Запускаем Flask сервер
     app.run(host="0.0.0.0", port=port)
+
 
