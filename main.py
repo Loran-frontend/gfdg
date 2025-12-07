@@ -49,20 +49,28 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text in active_codes:
         used_codes[text] = telegram_id
-        await update.message.reply_text("Код принят! Система привяжет ваш аккаунт.")
+        await update.message.reply_text("Код принят! Аккаунт будет привязан.")
         print(f"[INFO] Code {text} used by {telegram_id}")
     else:
         await update.message.reply_text("Код не найден или уже использован.")
 
+async def start_bot_async():
+    app_tg = ApplicationBuilder().token(TOKEN).build()
+    app_tg.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+
+    # <--- ВАЖНО: отключаем сигналы
+    await app_tg.run_polling(
+        stop_signals=None,
+        close_loop=False
+    )
+
 def start_bot():
-    asyncio.set_event_loop(asyncio.new_event_loop())
-    loop = asyncio.get_event_loop()
-    application = ApplicationBuilder().token(TOKEN).build()
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-    loop.run_until_complete(application.run_polling())
+    asyncio.run(start_bot_async())
 
 if __name__ == "__main__":
+    # Стартуем Telegram-бота в отдельном потоке
     threading.Thread(target=start_bot, daemon=True).start()
 
+    # Flask запускаем как обычный Railway backend
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
