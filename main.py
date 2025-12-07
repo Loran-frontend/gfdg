@@ -3,7 +3,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 from threading import Thread
 
-TOKEN = ""
+TOKEN = "8394612560:AAEA_-8I-TMpW7LxCEmGHBu8uWa6FMoHcJk"
 app = Flask(__name__)
 
 active_codes = {}
@@ -57,4 +57,5 @@ if __name__ == "__main__":
     application = ApplicationBuilder().token(TOKEN).build()
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     application.run_polling()
+
 
