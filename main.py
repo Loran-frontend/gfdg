@@ -87,10 +87,12 @@ if __name__ == "__main__":
     webhook_url = f"{PUBLIC_URL}{WEBHOOK_PATH}"
     bot.set_webhook(webhook_url)
     print(f"[INFO] Webhook установлен: {webhook_url}")
+      # Запуск Flask сервера
+    app.run(host="0.0.0.0", port=PORT)
 
     application = ApplicationBuilder().token(TOKEN).build()
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     application.run_polling()
 
-    # Запуск Flask сервера
-    app.run(host="0.0.0.0", port=PORT)
+  
+
