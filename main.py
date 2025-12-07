@@ -1,13 +1,17 @@
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
-from threading import Thread
+import asyncio
 
-TOKEN = "8394612560:AAEA_-8I-TMpW7LxCEmGHBu8uWa6FMoHcJk"
+TOKEN = "ТУТ_ТВОЙ_ТОКЕН"
 app = Flask(__name__)
 
 active_codes = {}
 used_codes = {}
+
+@app.route('/')
+def index():
+    return "Bot is running!"
 
 @app.route('/add_code', methods=['POST'])
 def add_code():
@@ -35,7 +39,6 @@ def remove_code():
     if code:
         active_codes.pop(code, None)
         used_codes.pop(code, None)
-        print(f"[INFO] Код {code} удалён")
         return "OK"
     return "ERROR", 400
 
@@ -45,17 +48,16 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text in active_codes:
         used_codes[text] = telegram_id
-        await update.message.reply_text(
-            "Код принят! Ваш Telegram ID будет привязан к Minecraft аккаунту."
-        )
-        print(f"[INFO] Код {text} использован пользователем {telegram_id}")
+        await update.message.reply_text("Код принят! ID отправлен серверу.")
     else:
         await update.message.reply_text("Код не найден или уже использован.")
 
+async def run_bot():
+    app_tg = ApplicationBuilder().token(TOKEN).build()
+    app_tg.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    await app_tg.run_polling()
+
 if __name__ == "__main__":
-    Thread(target=lambda: app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False)).start()
-    application = ApplicationBuilder().token(TOKEN).build()
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-    application.run_polling()
-
-
+    loop = asyncio.get_event_loop()
+    loop.create_task(run_bot())
+    app.run(host="0.0.0.0", port=8080)
